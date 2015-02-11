@@ -14,6 +14,7 @@ add_action( 'jetpack_deactivate_module_json-api', array( Jetpack::init(), 'toggl
 
 add_action( 'jetpack_modules_loaded', 'jetpack_json_api_load_module' );
 add_action( 'jetpack_notices_update_settings_json-api', 'jetpack_json_api_setting_updated_notice' );
+add_action( 'wp_loaded', 'jetpack_json_api_get_site_updates' );
 
 $theme_slug = get_option( 'stylesheet' );
 
@@ -21,7 +22,8 @@ Jetpack_Sync::sync_options( __FILE__,
 	'stylesheet',
 	"theme_mods_{$theme_slug}",
 	'jetpack_json_api_full_management',
-	'jetpack_sync_non_public_post_stati'
+	'jetpack_sync_non_public_post_stati',
+	'jetpack_wp_updates'
 );
 
 if ( Jetpack_Options::get_option( 'sync_non_public_post_stati' ) ) {
@@ -32,10 +34,37 @@ if ( Jetpack_Options::get_option( 'sync_non_public_post_stati' ) ) {
 	Jetpack_Sync::sync_posts( __FILE__, $sync_options );
 }
 
+function jetpack_json_api_get_site_updates() {
+	// if we are not on the main site, we don't need to calculate updates
+	// we can save a blank array
+	if ( ! is_main_site() ) {
+		Jetpack_Options::update_option( 'wp_updates', array() );
+		return;
+	}
+
+	$update_data = wp_get_update_data();
+	if ( isset( $update_data['counts'] ) ) {
+		$updates = $update_data['counts'];
+	}
+
+	$updates['wp_version'] = isset( $wp_version ) ? $wp_version : null;
+
+	if ( ! empty( $updates['wordpress'] ) ) {
+		$cur = get_preferred_from_update_core();
+		if ( isset( $cur->response ) && $cur->response === 'upgrade' ) {
+			$updates['wp_update_version'] = $cur->current;
+		}
+	}
+
+	$updates['is_vcs'] = jetpack_json_api_is_vcs();
+	Jetpack_Options::update_option( 'wp_updates', $updates );
+}
+
 function jetpack_json_api_is_vcs() {
 	include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 	$context = 'WP_PLUGINS_DIR';
-	return WP_Automatic_Updater::is_vcs_checkout( $context );
+	$updater = new WP_Automatic_Updater();
+	return $updater->is_vcs_checkout( $context );
 }
 
 function jetpack_json_api_load_module() {
