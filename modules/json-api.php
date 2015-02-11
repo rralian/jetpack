@@ -32,6 +32,12 @@ if ( Jetpack_Options::get_option( 'sync_non_public_post_stati' ) ) {
 	Jetpack_Sync::sync_posts( __FILE__, $sync_options );
 }
 
+function jetpack_json_api_is_vcs() {
+	include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+	$context = 'WP_PLUGINS_DIR';
+	return WP_Automatic_Updater::is_vcs_checkout( $context );
+}
+
 function jetpack_json_api_load_module() {
 	Jetpack::enable_module_configurable( __FILE__ );
 	Jetpack::module_configuration_load( __FILE__, 'jetpack_json_api_configuration_load' );
