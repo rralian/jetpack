@@ -34,7 +34,13 @@ if ( Jetpack_Options::get_option( 'sync_non_public_post_stati' ) ) {
 	Jetpack_Sync::sync_posts( __FILE__, $sync_options );
 }
 
+/**
+ * On each page load, we'll check to see if new updates for the site are available,
+ * and save the updates data to a jetpack option. We skip this check on subsites in
+ * a multi-site network.
+ */
 function jetpack_json_api_get_site_updates() {
+
 	// if we are not on the main site, we don't need to calculate updates
 	// we can save a blank array
 	if ( ! is_main_site() ) {
@@ -56,15 +62,33 @@ function jetpack_json_api_get_site_updates() {
 		}
 	}
 
-	$updates['is_vcs'] = jetpack_json_api_is_vcs();
+	$updates['is_vcs'] = (bool) jetpack_json_api_is_vcs();
 	Jetpack_Options::update_option( 'wp_updates', $updates );
 }
 
+/**
+ * Finds out if a site is using a version control system.
+ * We'll store that information as a transient with a 24 expiration.
+ * We only need to check once per day.
+ *
+ * @return string ( '1' | '0' )
+ */
 function jetpack_json_api_is_vcs() {
-	include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-	$context = 'WP_PLUGINS_DIR';
-	$updater = new WP_Automatic_Updater();
-	return $updater->is_vcs_checkout( $context );
+	$is_vcs = get_transient( 'jetpack_is_vcs' );
+
+	if ( false === $is_vcs ) {
+		include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+		$context = 'WP_PLUGINS_DIR';
+		$updater = new WP_Automatic_Updater();
+		$is_vcs  = strval( $updater->is_vcs_checkout( $context ) );
+		// we should always store a string value of this
+		if ( empty( $is_vcs ) ) {
+			$is_vcs = '0';
+		}
+		set_transient( 'jetpack_is_vcs', $is_vcs, DAY_IN_SECONDS );
+	}
+
+	return $is_vcs;
 }
 
 function jetpack_json_api_load_module() {
